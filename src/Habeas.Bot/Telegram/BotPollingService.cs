@@ -17,7 +17,7 @@ internal sealed class BotPollingService(
     {
         var receiverOptions = new ReceiverOptions
         {
-            AllowedUpdates = [UpdateType.Message],
+            AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery],
             DropPendingUpdates = true,
         };
 

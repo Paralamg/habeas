@@ -2,31 +2,59 @@ using System.Globalization;
 using Habeas.Application.Common;
 using Habeas.Application.Users;
 using Habeas.Domain.Common;
+using Habeas.Domain.Users;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Habeas.Bot.Telegram;
 
 /// <summary>
-/// Translates inbound text commands into application use cases and formats the reply.
-/// This is the bot's "controller": it owns no business rules, only parsing and presentation.
-/// Add a new command by adding a branch here and the matching use case in the application layer.
+/// Translates inbound text commands and button callbacks into application use cases and formats
+/// the reply. This is the bot's "controller": it owns no business rules, only parsing and
+/// presentation. Add a new command by adding a branch here and the matching use case in the
+/// application layer.
 /// </summary>
 internal sealed class BotCommandRouter(
     ICommandHandler<RegisterUser.Command, Guid> registerUser,
-    ICommandHandler<SetBodyMetrics.Command, BodyMetricsView> setBodyMetrics,
-    IQueryHandler<GetProfile.Query, GetProfile.ProfileView> getProfile)
+    ICommandHandler<RecordBodyMeasurement.Command, MeasurementView> recordMeasurement,
+    IQueryHandler<GetProfile.Query, GetProfile.ProfileView> getProfile,
+    BodyConversationState conversations)
 {
-    public async Task<string> RouteAsync(long telegramUserId, string displayName, string text, CancellationToken ct)
+    /// <summary>Prefix for <c>/body</c> button callback data, e.g. <c>body:height</c>.</summary>
+    private const string BodyCallbackPrefix = "body:";
+
+    public async Task<BotResponse> RouteAsync(long telegramUserId, string displayName, string text, CancellationToken ct)
     {
+        // A pending /body prompt takes precedence over free text. Typing another command instead
+        // abandons the prompt (consumed here) and routes the command normally.
+        if (conversations.TryConsume(telegramUserId, out var pending) && !text.TrimStart().StartsWith('/'))
+        {
+            return await HandleMeasurementValueAsync(telegramUserId, pending, text, ct);
+        }
+
         var (command, argument) = Split(text);
 
         return command switch
         {
             "/start" => await HandleStartAsync(telegramUserId, displayName, argument, ct),
-            "/body" => await HandleBodyAsync(telegramUserId, argument, ct),
+            "/body" => HandleBody(),
             "/me" => await HandleMeAsync(telegramUserId, ct),
             "/help" => HelpText,
             _ => $"Unknown command. {HelpText}",
         };
+    }
+
+    /// <summary>Handles a tap on a <c>/body</c> metric button, asking for the value next.</summary>
+    public BotResponse HandleCallback(long telegramUserId, string callbackData)
+    {
+        if (!callbackData.StartsWith(BodyCallbackPrefix, StringComparison.Ordinal)
+            || MetricType.FromKey(callbackData[BodyCallbackPrefix.Length..]) is not { } metricType)
+        {
+            return "Sorry, I didn't recognise that choice. Send /body to try again.";
+        }
+
+        conversations.Await(telegramUserId, metricType);
+        return $"Enter your {metricType.DisplayName.ToLowerInvariant()} in {metricType.Unit} "
+            + $"(field: {metricType.Key}):";
     }
 
     private async Task<string> HandleStartAsync(
@@ -52,22 +80,36 @@ internal sealed class BotCommandRouter(
             : Fail(result.Error);
     }
 
-    private async Task<string> HandleBodyAsync(long telegramUserId, string argument, CancellationToken ct)
+    /// <summary>Presents the metric buttons; the actual value is captured in a follow-up message.</summary>
+    private static BotResponse HandleBody()
     {
-        // Text format: "/body <height_cm> <weight_kg>"  e.g.  /body 180 75
-        var parts = argument.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length != 2
-            || !double.TryParse(parts[0], NumberStyles.Any, CultureInfo.InvariantCulture, out var heightCm)
-            || !double.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var weightKg))
+        var buttons = MetricType.All
+            .Select(m => InlineKeyboardButton.WithCallbackData(m.DisplayName, $"{BodyCallbackPrefix}{m.Key}"));
+        var keyboard = new InlineKeyboardMarkup(buttons);
+
+        return new BotResponse("Which measurement would you like to record?", keyboard);
+    }
+
+    private async Task<string> HandleMeasurementValueAsync(
+        long telegramUserId, MetricType metricType, string text, CancellationToken ct)
+    {
+        if (!double.TryParse(text.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var value))
         {
-            return "Usage: /body <height_cm> <weight_kg>  e.g.  /body 180 75";
+            // Keep the prompt active so the user can simply retry with a number.
+            conversations.Await(telegramUserId, metricType);
+            return $"That doesn't look like a number. Enter your {metricType.DisplayName.ToLowerInvariant()} "
+                + $"in {metricType.Unit}, e.g. 180.";
         }
 
-        var command = new SetBodyMetrics.Command(telegramUserId, heightCm, weightKg);
-        var result = await setBodyMetrics.Handle(command, ct);
-        return result.IsSuccess
-            ? $"Saved: {result.Value.HeightCm:0.#} cm, {result.Value.WeightKg:0.#} kg. BMI: {result.Value.Bmi:0.0}."
-            : Fail(result.Error);
+        var result = await recordMeasurement.Handle(
+            new RecordBodyMeasurement.Command(telegramUserId, metricType.Key, value), ct);
+        if (result.IsFailure)
+        {
+            return Fail(result.Error);
+        }
+
+        var saved = result.Value;
+        return $"Saved: {saved.Metric.ToLowerInvariant()} {saved.Value:0.#} {saved.Unit}.";
     }
 
     private async Task<string> HandleMeAsync(long telegramUserId, CancellationToken ct)
@@ -84,10 +126,26 @@ internal sealed class BotCommandRouter(
 
         if (profile.BodyMetrics is not { } m)
         {
-            return $"{header}\nNo body metrics yet. Record them with /body <height_cm> <weight_kg>.";
+            return $"{header}\nNo body metrics yet. Record them with /body.";
         }
 
-        return $"{header}\nHeight: {m.HeightCm:0.#} cm\nWeight: {m.WeightKg:0.#} kg\nBMI: {m.Bmi:0.0}";
+        var lines = new List<string> { header };
+        if (m.HeightCm is { } h)
+        {
+            lines.Add($"Height: {h:0.#} cm");
+        }
+
+        if (m.WeightKg is { } w)
+        {
+            lines.Add($"Weight: {w:0.#} kg");
+        }
+
+        if (m.Bmi is { } bmi)
+        {
+            lines.Add($"BMI: {bmi:0.0}");
+        }
+
+        return string.Join('\n', lines);
     }
 
     private static (string Command, string Argument) Split(string text)
@@ -104,6 +162,6 @@ internal sealed class BotCommandRouter(
     private const string HelpText =
         "Commands:\n"
         + "/start <YYYY-MM-DD> — register with your date of birth\n"
-        + "/body <height_cm> <weight_kg> — record your height and weight\n"
+        + "/body — record a body measurement (height or weight)\n"
         + "/me — show your profile and BMI";
 }
