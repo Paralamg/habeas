@@ -13,28 +13,32 @@ public sealed class UserProfile : AggregateRoot<UserId>
     // Required by EF Core's materialization.
     private UserProfile(UserId id) : base(id) => TelegramUserId = null!;
 
-    private UserProfile(UserId id, TelegramUserId telegramUserId, string displayName) : base(id)
+    private UserProfile(UserId id, TelegramUserId telegramUserId, string displayName, DateOfBirth dateOfBirth)
+        : base(id)
     {
         TelegramUserId = telegramUserId;
         DisplayName = displayName;
+        DateOfBirth = dateOfBirth;
         CreatedAt = DateTimeOffset.UtcNow;
         Raise(new UserRegistered(id, telegramUserId.Value));
     }
 
     public TelegramUserId TelegramUserId { get; private set; }
     public string DisplayName { get; private set; } = string.Empty;
+    public DateOfBirth DateOfBirth { get; private set; } = null!;
     public BodyMetrics? BodyMetrics { get; private set; }
     public DateTimeOffset CreatedAt { get; private init; }
     public DateTimeOffset? UpdatedAt { get; private set; }
 
-    public static Result<UserProfile> Register(TelegramUserId telegramUserId, string displayName)
+    public static Result<UserProfile> Register(
+        TelegramUserId telegramUserId, string displayName, DateOfBirth dateOfBirth)
     {
         if (string.IsNullOrWhiteSpace(displayName))
         {
             return Error.Validation("Display name is required.");
         }
 
-        return new UserProfile(UserId.New(), telegramUserId, displayName.Trim());
+        return new UserProfile(UserId.New(), telegramUserId, displayName.Trim(), dateOfBirth);
     }
 
     /// <summary>Records the user's latest body metrics (height and weight).</summary>

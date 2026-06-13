@@ -21,7 +21,7 @@ internal sealed class BotCommandRouter(
 
         return command switch
         {
-            "/start" => await HandleStartAsync(telegramUserId, displayName, ct),
+            "/start" => await HandleStartAsync(telegramUserId, displayName, argument, ct),
             "/body" => await HandleBodyAsync(telegramUserId, argument, ct),
             "/me" => await HandleMeAsync(telegramUserId, ct),
             "/help" => HelpText,
@@ -29,9 +29,24 @@ internal sealed class BotCommandRouter(
         };
     }
 
-    private async Task<string> HandleStartAsync(long telegramUserId, string displayName, CancellationToken ct)
+    private async Task<string> HandleStartAsync(
+        long telegramUserId, string displayName, string argument, CancellationToken ct)
     {
-        var result = await registerUser.Handle(new RegisterUser.Command(telegramUserId, displayName), ct);
+        // Date of birth is required at registration: it underpins age-aware body analysis.
+        // Text format: "/start <YYYY-MM-DD>"  e.g.  /start 1990-05-20
+        if (string.IsNullOrWhiteSpace(argument))
+        {
+            return "To register, send your date of birth: /start <YYYY-MM-DD>  e.g.  /start 1990-05-20";
+        }
+
+        if (!DateOnly.TryParseExact(
+                argument.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateOfBirth))
+        {
+            return "I couldn't read that date. Use the format YYYY-MM-DD, e.g. /start 1990-05-20";
+        }
+
+        var result = await registerUser.Handle(
+            new RegisterUser.Command(telegramUserId, displayName, dateOfBirth), ct);
         return result.IsSuccess
             ? $"Welcome, {displayName}! You're registered. {HelpText}"
             : Fail(result.Error);
@@ -64,12 +79,15 @@ internal sealed class BotCommandRouter(
         }
 
         var profile = result.Value;
+        var header = $"{profile.DisplayName}\n"
+            + $"Born: {profile.DateOfBirth:yyyy-MM-dd} (age {profile.AgeYears})";
+
         if (profile.BodyMetrics is not { } m)
         {
-            return $"{profile.DisplayName}, no body metrics yet. Record them with /body <height_cm> <weight_kg>.";
+            return $"{header}\nNo body metrics yet. Record them with /body <height_cm> <weight_kg>.";
         }
 
-        return $"{profile.DisplayName}\nHeight: {m.HeightCm:0.#} cm\nWeight: {m.WeightKg:0.#} kg\nBMI: {m.Bmi:0.0}";
+        return $"{header}\nHeight: {m.HeightCm:0.#} cm\nWeight: {m.WeightKg:0.#} kg\nBMI: {m.Bmi:0.0}";
     }
 
     private static (string Command, string Argument) Split(string text)
@@ -85,7 +103,7 @@ internal sealed class BotCommandRouter(
 
     private const string HelpText =
         "Commands:\n"
-        + "/start — register\n"
+        + "/start <YYYY-MM-DD> — register with your date of birth\n"
         + "/body <height_cm> <weight_kg> — record your height and weight\n"
         + "/me — show your profile and BMI";
 }

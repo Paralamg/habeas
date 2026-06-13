@@ -7,7 +7,8 @@ namespace Habeas.Application.Users;
 public class RegisterUser
 {
     /// <summary>Registers a Telegram user the first time they interact with the bot.</summary>
-    public sealed record Command(long TelegramUserId, string DisplayName) : ICommand<Guid>;
+    public sealed record Command(long TelegramUserId, string DisplayName, DateOnly DateOfBirth)
+        : ICommand<Guid>;
 
     public sealed class Handler(IUserRepository users, IUnitOfWork unitOfWork)
         : ICommandHandler<Command, Guid>
@@ -27,7 +28,13 @@ public class RegisterUser
                 return telegramId.Error;
             }
 
-            var profile = UserProfile.Register(telegramId.Value, command.DisplayName);
+            var dateOfBirth = DateOfBirth.Create(command.DateOfBirth);
+            if (dateOfBirth.IsFailure)
+            {
+                return dateOfBirth.Error;
+            }
+
+            var profile = UserProfile.Register(telegramId.Value, command.DisplayName, dateOfBirth.Value);
             if (profile.IsFailure)
             {
                 return profile.Error;

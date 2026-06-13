@@ -10,8 +10,9 @@ public class GetProfile
     public sealed record Query(long TelegramUserId) : IQuery<ProfileView>;
 
     /// <summary>Read model returned to the presentation layer.</summary>
-    public sealed record ProfileView(string DisplayName, BodyMetricsView? BodyMetrics);
-    
+    public sealed record ProfileView(
+        string DisplayName, DateOnly DateOfBirth, int AgeYears, BodyMetricsView? BodyMetrics);
+
     public sealed class Handler(IUserRepository users) : IQueryHandler<Query, ProfileView>
     {
         public async Task<Result<ProfileView>> Handle(Query query, CancellationToken cancellationToken)
@@ -26,7 +27,9 @@ public class GetProfile
                 ? new BodyMetricsView(m.HeightCm, m.WeightKg, m.Bmi)
                 : null;
 
-            return new ProfileView(user.DisplayName, metrics);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            return new ProfileView(
+                user.DisplayName, user.DateOfBirth.Value, user.DateOfBirth.AgeInYears(today), metrics);
         }
     }
 }
