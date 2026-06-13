@@ -8,10 +8,13 @@ public sealed class UserProfileTests
 {
     private static TelegramUserId AnyTelegramId() => TelegramUserId.Create(42).Value;
 
+    private static DateOfBirth AnyDateOfBirth() =>
+        DateOfBirth.Create(new DateOnly(1990, 5, 20)).Value;
+
     [Test]
     public void Register_WithBlankName_Fails()
     {
-        var result = UserProfile.Register(AnyTelegramId(), "   ");
+        var result = UserProfile.Register(AnyTelegramId(), "   ", AnyDateOfBirth());
 
         Assert.That(result.IsFailure, Is.True);
     }
@@ -19,7 +22,7 @@ public sealed class UserProfileTests
     [Test]
     public void Register_Succeeds_AndRaisesUserRegistered()
     {
-        var result = UserProfile.Register(AnyTelegramId(), "Alice");
+        var result = UserProfile.Register(AnyTelegramId(), "Alice", AnyDateOfBirth());
 
         Assert.Multiple(() =>
         {
@@ -31,7 +34,7 @@ public sealed class UserProfileTests
     [Test]
     public void SetBodyMetrics_StoresMetrics()
     {
-        var user = UserProfile.Register(AnyTelegramId(), "Alice").Value;
+        var user = UserProfile.Register(AnyTelegramId(), "Alice", AnyDateOfBirth()).Value;
         var metrics = BodyMetrics.Create(heightCm: 180, weightKg: 75).Value;
 
         var result = user.SetBodyMetrics(metrics);
