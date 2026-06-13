@@ -26,13 +26,30 @@ internal sealed class UserProfileConfiguration : IEntityTypeConfiguration<UserPr
             .HasColumnType("date")
             .IsRequired();
 
-        builder.OwnsOne(u => u.BodyMetrics, metrics =>
+        builder.OwnsMany(u => u.Measurements, measurements =>
         {
-            metrics.Property(m => m.HeightCm);
-            metrics.Property(m => m.WeightKg);
-            metrics.Ignore(m => m.Bmi);
+            measurements.ToTable("body_measurements");
+            measurements.WithOwner().HasForeignKey("user_id");
+
+            measurements.HasKey(m => m.Id);
+            measurements.Property(m => m.Id)
+                .HasConversion(id => id.Value, value => new BodyMeasurementId(value))
+                .ValueGeneratedNever();
+
+            measurements.Property(m => m.MetricType)
+                .HasConversion(type => type.Key, key => MetricType.FromKey(key)!)
+                .HasColumnName("metric")
+                .HasMaxLength(32)
+                .IsRequired();
+
+            measurements.Property(m => m.Value);
+            measurements.Property(m => m.RecordedAt);
         });
 
+        builder.Navigation(u => u.Measurements)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Ignore(u => u.CurrentBmi);
         builder.Ignore(u => u.DomainEvents);
     }
 }

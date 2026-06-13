@@ -23,9 +23,11 @@ public class GetProfile
                 return Error.NotFound("You are not registered yet. Send /start first.");
             }
 
-            var metrics = user.BodyMetrics is { } m
-                ? new BodyMetricsView(m.HeightCm, m.WeightKg, m.Bmi)
-                : null;
+            var height = user.LatestOf(MetricType.Height);
+            var weight = user.LatestOf(MetricType.Weight);
+            var metrics = height is null && weight is null
+                ? null
+                : new BodyMetricsView(height?.Value, weight?.Value, user.CurrentBmi);
 
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             return new ProfileView(
