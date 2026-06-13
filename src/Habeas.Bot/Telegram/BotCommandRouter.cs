@@ -1,9 +1,6 @@
 using System.Globalization;
 using Habeas.Application.Common;
 using Habeas.Application.Users;
-using Habeas.Application.Users.GetProfile;
-using Habeas.Application.Users.RegisterUser;
-using Habeas.Application.Users.SetBodyMetrics;
 using Habeas.Domain.Common;
 
 namespace Habeas.Bot.Telegram;
@@ -14,9 +11,9 @@ namespace Habeas.Bot.Telegram;
 /// Add a new command by adding a branch here and the matching use case in the application layer.
 /// </summary>
 internal sealed class BotCommandRouter(
-    ICommandHandler<RegisterUserCommand, Guid> registerUser,
-    ICommandHandler<SetBodyMetricsCommand, BodyMetricsView> setBodyMetrics,
-    IQueryHandler<GetProfileQuery, ProfileView> getProfile)
+    ICommandHandler<RegisterUser.Command, Guid> registerUser,
+    ICommandHandler<SetBodyMetrics.Command, BodyMetricsView> setBodyMetrics,
+    IQueryHandler<GetProfile.Query, GetProfile.ProfileView> getProfile)
 {
     public async Task<string> RouteAsync(long telegramUserId, string displayName, string text, CancellationToken ct)
     {
@@ -34,7 +31,7 @@ internal sealed class BotCommandRouter(
 
     private async Task<string> HandleStartAsync(long telegramUserId, string displayName, CancellationToken ct)
     {
-        var result = await registerUser.Handle(new RegisterUserCommand(telegramUserId, displayName), ct);
+        var result = await registerUser.Handle(new RegisterUser.Command(telegramUserId, displayName), ct);
         return result.IsSuccess
             ? $"Welcome, {displayName}! You're registered. {HelpText}"
             : Fail(result.Error);
@@ -51,7 +48,7 @@ internal sealed class BotCommandRouter(
             return "Usage: /body <height_cm> <weight_kg>  e.g.  /body 180 75";
         }
 
-        var command = new SetBodyMetricsCommand(telegramUserId, heightCm, weightKg);
+        var command = new SetBodyMetrics.Command(telegramUserId, heightCm, weightKg);
         var result = await setBodyMetrics.Handle(command, ct);
         return result.IsSuccess
             ? $"Saved: {result.Value.HeightCm:0.#} cm, {result.Value.WeightKg:0.#} kg. BMI: {result.Value.Bmi:0.0}."
@@ -60,7 +57,7 @@ internal sealed class BotCommandRouter(
 
     private async Task<string> HandleMeAsync(long telegramUserId, CancellationToken ct)
     {
-        var result = await getProfile.Handle(new GetProfileQuery(telegramUserId), ct);
+        var result = await getProfile.Handle(new GetProfile.Query(telegramUserId), ct);
         if (result.IsFailure)
         {
             return Fail(result.Error);

@@ -1,5 +1,5 @@
 using Habeas.Application.Common;
-using Habeas.Application.Users.RegisterUser;
+using Habeas.Application.Users;
 using Habeas.Domain.Users;
 
 namespace Habeas.Application.Tests;
@@ -11,9 +11,9 @@ public sealed class RegisterUserCommandHandlerTests
     public async Task Handle_NewUser_PersistsAndReturnsId()
     {
         var users = new InMemoryUserRepository();
-        var handler = new RegisterUserCommandHandler(users, new NoOpUnitOfWork());
+        var handler = new RegisterUser.Handler(users, new NoOpUnitOfWork());
 
-        var result = await handler.Handle(new RegisterUserCommand(123, "Alice"), CancellationToken.None);
+        var result = await handler.Handle(new RegisterUser.Command(123, "Alice"), CancellationToken.None);
         var stored = await users.GetByTelegramIdAsync(123);
 
         Assert.Multiple(() =>
@@ -27,10 +27,10 @@ public sealed class RegisterUserCommandHandlerTests
     public async Task Handle_ExistingUser_IsIdempotent()
     {
         var users = new InMemoryUserRepository();
-        var handler = new RegisterUserCommandHandler(users, new NoOpUnitOfWork());
+        var handler = new RegisterUser.Handler(users, new NoOpUnitOfWork());
 
-        var first = await handler.Handle(new RegisterUserCommand(123, "Alice"), CancellationToken.None);
-        var second = await handler.Handle(new RegisterUserCommand(123, "Alice again"), CancellationToken.None);
+        var first = await handler.Handle(new RegisterUser.Command(123, "Alice"), CancellationToken.None);
+        var second = await handler.Handle(new RegisterUser.Command(123, "Alice again"), CancellationToken.None);
 
         Assert.Multiple(() =>
         {
