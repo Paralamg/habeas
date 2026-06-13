@@ -17,6 +17,7 @@ internal sealed class BotCommandRouter(
     ICommandHandler<RegisterUser.Command, Guid> registerUser,
     ICommandHandler<RecordBodyMeasurement.Command, MeasurementView> recordMeasurement,
     IQueryHandler<GetProfile.Query, GetProfile.ProfileView> getProfile,
+    IQueryHandler<GetMeasurementHistory.Query, GetMeasurementHistory.HistoryView> getHistory,
     BodyConversationState conversations)
 {
     /// <summary>Prefix for <c>/body</c> button callback data, e.g. <c>body:height</c>.</summary>
@@ -38,6 +39,7 @@ internal sealed class BotCommandRouter(
             "/start" => await HandleStartAsync(telegramUserId, displayName, argument, ct),
             "/body" => HandleBody(),
             "/me" => await HandleMeAsync(telegramUserId, ct),
+            "/history" => await HandleHistoryAsync(telegramUserId, ct),
             "/help" => HelpText,
             _ => $"Unknown command. {HelpText}",
         };
@@ -148,6 +150,31 @@ internal sealed class BotCommandRouter(
         return string.Join('\n', lines);
     }
 
+    private async Task<string> HandleHistoryAsync(long telegramUserId, CancellationToken ct)
+    {
+        var result = await getHistory.Handle(new GetMeasurementHistory.Query(telegramUserId), ct);
+        if (result.IsFailure)
+        {
+            return Fail(result.Error);
+        }
+
+        if (result.Value.Measurements.Count == 0)
+        {
+            return "No measurements yet. Record some with /body.";
+        }
+
+        // Group by metric so each characteristic's trend reads top-to-bottom (oldest first).
+        var sections = result.Value.Measurements
+            .GroupBy(m => (m.Metric, m.Unit))
+            .Select(group =>
+            {
+                var rows = group.Select(m => $"  {m.RecordedAt:yyyy-MM-dd}: {m.Value:0.#} {m.Unit}");
+                return $"{group.Key.Metric}:\n{string.Join('\n', rows)}";
+            });
+
+        return $"Measurement history:\n\n{string.Join("\n\n", sections)}";
+    }
+
     private static (string Command, string Argument) Split(string text)
     {
         var trimmed = text.Trim();
@@ -163,5 +190,6 @@ internal sealed class BotCommandRouter(
         "Commands:\n"
         + "/start <YYYY-MM-DD> — register with your date of birth\n"
         + "/body — record a body measurement (height or weight)\n"
-        + "/me — show your profile and BMI";
+        + "/me — show your profile and BMI\n"
+        + "/history — show all recorded measurements over time";
 }
