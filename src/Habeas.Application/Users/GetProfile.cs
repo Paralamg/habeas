@@ -11,7 +11,7 @@ public class GetProfile
 
     /// <summary>Read model returned to the presentation layer.</summary>
     public sealed record ProfileView(
-        string DisplayName, DateOnly DateOfBirth, int AgeYears, BodyMetricsView? BodyMetrics);
+        string DisplayName, DateOnly? DateOfBirth, int? AgeYears, BodyMetricsView? BodyMetrics);
 
     public sealed class Handler(IUserRepository users) : IQueryHandler<Query, ProfileView>
     {
@@ -31,7 +31,10 @@ public class GetProfile
 
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             return new ProfileView(
-                user.DisplayName, user.DateOfBirth.Value, user.DateOfBirth.AgeInYears(today), metrics);
+                user.DisplayName,
+                user.DateOfBirth?.Value,
+                user.DateOfBirth?.AgeInYears(today),
+                metrics);
         }
     }
 }

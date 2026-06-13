@@ -9,7 +9,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddScoped<ICommandHandler<RegisterUser.Command, Guid>, RegisterUser.Handler>();
+        services.AddScoped<ICommandHandler<RegisterUser.Command, RegisterUser.Registration>, RegisterUser.Handler>();
+        services.AddScoped<ICommandHandler<SetDateOfBirth.Command, SetDateOfBirth.DateOfBirthView>, SetDateOfBirth.Handler>();
         services.AddScoped<ICommandHandler<RecordBodyMeasurement.Command, MeasurementView>, RecordBodyMeasurement.Handler>();
         services.AddScoped<IQueryHandler<GetProfile.Query, GetProfile.ProfileView>, GetProfile.Handler>();
         services.AddScoped<IQueryHandler<GetMeasurementHistory.Query, GetMeasurementHistory.HistoryView>, GetMeasurementHistory.Handler>();

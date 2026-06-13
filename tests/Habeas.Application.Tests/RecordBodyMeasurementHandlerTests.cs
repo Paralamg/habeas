@@ -54,8 +54,7 @@ public sealed class RecordBodyMeasurementHandlerTests
     }
 
     private static UserProfile NewUser(long telegramId) =>
-        UserProfile.Register(
-            TelegramUserId.Create(telegramId).Value, "Alice", DateOfBirth.Create(new DateOnly(1990, 5, 20)).Value).Value;
+        UserProfile.Register(TelegramUserId.Create(telegramId).Value, "Alice").Value;
 
     private sealed class FixedClock : IClock
     {

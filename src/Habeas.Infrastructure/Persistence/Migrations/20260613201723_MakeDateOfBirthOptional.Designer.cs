@@ -3,6 +3,7 @@ using System;
 using Habeas.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Habeas.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(HabeasDbContext))]
-    partial class HabeasDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260613201723_MakeDateOfBirthOptional")]
+    partial class MakeDateOfBirthOptional
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

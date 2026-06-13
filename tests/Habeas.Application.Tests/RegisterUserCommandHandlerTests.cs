@@ -13,12 +13,13 @@ public sealed class RegisterUserCommandHandlerTests
         var users = new InMemoryUserRepository();
         var handler = new RegisterUser.Handler(users, new NoOpUnitOfWork());
 
-        var result = await handler.Handle(new RegisterUser.Command(123, "Alice", new DateOnly(1990, 5, 20)), CancellationToken.None);
+        var result = await handler.Handle(new RegisterUser.Command(123, "Alice"), CancellationToken.None);
         var stored = await users.GetByTelegramIdAsync(123);
 
         Assert.Multiple(() =>
         {
             Assert.That(result.IsSuccess, Is.True);
+            Assert.That(result.Value.WasCreated, Is.True);
             Assert.That(stored, Is.Not.Null);
         });
     }
@@ -29,12 +30,13 @@ public sealed class RegisterUserCommandHandlerTests
         var users = new InMemoryUserRepository();
         var handler = new RegisterUser.Handler(users, new NoOpUnitOfWork());
 
-        var first = await handler.Handle(new RegisterUser.Command(123, "Alice", new DateOnly(1990, 5, 20)), CancellationToken.None);
-        var second = await handler.Handle(new RegisterUser.Command(123, "Alice again", new DateOnly(1985, 1, 1)), CancellationToken.None);
+        var first = await handler.Handle(new RegisterUser.Command(123, "Alice"), CancellationToken.None);
+        var second = await handler.Handle(new RegisterUser.Command(123, "Alice again"), CancellationToken.None);
 
         Assert.Multiple(() =>
         {
-            Assert.That(second.Value, Is.EqualTo(first.Value));
+            Assert.That(second.Value.UserId, Is.EqualTo(first.Value.UserId));
+            Assert.That(second.Value.WasCreated, Is.False);
             Assert.That(users.All, Has.Count.EqualTo(1));
         });
     }

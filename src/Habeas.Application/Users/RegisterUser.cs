@@ -7,19 +7,21 @@ namespace Habeas.Application.Users;
 public class RegisterUser
 {
     /// <summary>Registers a Telegram user the first time they interact with the bot.</summary>
-    public sealed record Command(long TelegramUserId, string DisplayName, DateOnly DateOfBirth)
-        : ICommand<Guid>;
+    public sealed record Command(long TelegramUserId, string DisplayName) : ICommand<Registration>;
+
+    /// <summary>Outcome of registration: the user's id and whether they were newly created.</summary>
+    public sealed record Registration(Guid UserId, bool WasCreated);
 
     public sealed class Handler(IUserRepository users, IUnitOfWork unitOfWork)
-        : ICommandHandler<Command, Guid>
+        : ICommandHandler<Command, Registration>
     {
-        public async Task<Result<Guid>> Handle(Command command, CancellationToken cancellationToken)
+        public async Task<Result<Registration>> Handle(Command command, CancellationToken cancellationToken)
         {
             var existing = await users.GetByTelegramIdAsync(command.TelegramUserId, cancellationToken);
             if (existing is not null)
             {
                 // Registration is idempotent: re-issuing /start must not create a duplicate.
-                return existing.Id.Value;
+                return new Registration(existing.Id.Value, WasCreated: false);
             }
 
             var telegramId = TelegramUserId.Create(command.TelegramUserId);
@@ -28,13 +30,7 @@ public class RegisterUser
                 return telegramId.Error;
             }
 
-            var dateOfBirth = DateOfBirth.Create(command.DateOfBirth);
-            if (dateOfBirth.IsFailure)
-            {
-                return dateOfBirth.Error;
-            }
-
-            var profile = UserProfile.Register(telegramId.Value, command.DisplayName, dateOfBirth.Value);
+            var profile = UserProfile.Register(telegramId.Value, command.DisplayName);
             if (profile.IsFailure)
             {
                 return profile.Error;
@@ -43,7 +39,7 @@ public class RegisterUser
             await users.AddAsync(profile.Value, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            return profile.Value.Id.Value;
+            return new Registration(profile.Value.Id.Value, WasCreated: true);
         }
     }
 }

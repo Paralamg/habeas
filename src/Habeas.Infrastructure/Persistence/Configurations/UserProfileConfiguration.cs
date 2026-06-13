@@ -22,9 +22,8 @@ internal sealed class UserProfileConfiguration : IEntityTypeConfiguration<UserPr
         builder.Property(u => u.DisplayName).HasMaxLength(256).IsRequired();
 
         builder.Property(u => u.DateOfBirth)
-            .HasConversion(dob => dob.Value, value => DateOfBirth.FromTrusted(value))
-            .HasColumnType("date")
-            .IsRequired();
+            .HasConversion(dob => dob!.Value, value => DateOfBirth.FromTrusted(value))
+            .HasColumnType("date");
 
         builder.OwnsMany(u => u.Measurements, measurements =>
         {

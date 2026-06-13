@@ -1,49 +1,48 @@
-using Habeas.Domain.Users;
+using Habeas.Application.Common;
 using Habeas.Application.Users;
+using Habeas.Domain.Users;
 
 namespace Habeas.Application.Tests;
 
 [TestFixture]
-public sealed class GetMeasurementHistoryHandlerTests
+public sealed class SetDateOfBirthHandlerTests
 {
     [Test]
     public async Task Handle_UnregisteredUser_ReturnsNotFound()
     {
-        var handler = new GetMeasurementHistory.Handler(new InMemoryUserRepository());
+        var handler = new SetDateOfBirth.Handler(new InMemoryUserRepository(), new NoOpUnitOfWork());
 
-        var result = await handler.Handle(new GetMeasurementHistory.Query(123), CancellationToken.None);
+        var result = await handler.Handle(
+            new SetDateOfBirth.Command(123, new DateOnly(1990, 5, 20)), CancellationToken.None);
 
         Assert.That(result.IsFailure, Is.True);
     }
 
     [Test]
-    public async Task Handle_ReturnsMeasurementsOldestFirst()
+    public async Task Handle_RegisteredUser_StoresDateOfBirth()
     {
         var users = new InMemoryUserRepository();
-        var user = NewUser(123);
-        user.RecordMeasurement(MetricType.Weight, 74, At(2026, 6, 13));
-        user.RecordMeasurement(MetricType.Weight, 75, At(2026, 6, 1));
+        var user = UserProfile.Register(TelegramUserId.Create(123).Value, "Alice").Value;
         users.All.Add(user);
-        var handler = new GetMeasurementHistory.Handler(users);
+        var handler = new SetDateOfBirth.Handler(users, new NoOpUnitOfWork());
 
-        var result = await handler.Handle(new GetMeasurementHistory.Query(123), CancellationToken.None);
+        var result = await handler.Handle(
+            new SetDateOfBirth.Command(123, new DateOnly(1990, 5, 20)), CancellationToken.None);
 
         Assert.Multiple(() =>
         {
             Assert.That(result.IsSuccess, Is.True);
-            Assert.That(result.Value.Measurements, Has.Count.EqualTo(2));
-            Assert.That(result.Value.Measurements[0].Value, Is.EqualTo(75));
-            Assert.That(result.Value.Measurements[1].Value, Is.EqualTo(74));
+            Assert.That(result.Value.DateOfBirth, Is.EqualTo(new DateOnly(1990, 5, 20)));
+            Assert.That(user.DateOfBirth, Is.Not.Null);
         });
     }
 
-    private static UserProfile NewUser(long telegramId) =>
-        UserProfile.Register(TelegramUserId.Create(telegramId).Value, "Alice").Value;
+    private sealed class NoOpUnitOfWork : IUnitOfWork
+    {
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
+    }
 
-    private static DateTimeOffset At(int year, int month, int day) =>
-        new(new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc));
-
-    private sealed class InMemoryUserRepository : Habeas.Domain.Users.IUserRepository
+    private sealed class InMemoryUserRepository : IUserRepository
     {
         public List<UserProfile> All { get; } = [];
 
