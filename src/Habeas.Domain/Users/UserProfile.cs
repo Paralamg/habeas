@@ -15,19 +15,20 @@ public sealed class UserProfile : AggregateRoot<UserId>
     // Required by EF Core's materialization.
     private UserProfile(UserId id) : base(id) => TelegramUserId = null!;
 
-    private UserProfile(UserId id, TelegramUserId telegramUserId, string displayName, DateOfBirth dateOfBirth)
+    private UserProfile(UserId id, TelegramUserId telegramUserId, string displayName)
         : base(id)
     {
         TelegramUserId = telegramUserId;
         DisplayName = displayName;
-        DateOfBirth = dateOfBirth;
         CreatedAt = DateTimeOffset.UtcNow;
         Raise(new UserRegistered(id, telegramUserId.Value));
     }
 
     public TelegramUserId TelegramUserId { get; private set; }
     public string DisplayName { get; private set; } = string.Empty;
-    public DateOfBirth DateOfBirth { get; private set; } = null!;
+
+    /// <summary>The user's date of birth; null until they set it via the /birth flow.</summary>
+    public DateOfBirth? DateOfBirth { get; private set; }
 
     /// <summary>The full history of recorded body measurements, oldest-to-newest is not guaranteed.</summary>
     public IReadOnlyCollection<BodyMeasurement> Measurements => _measurements.AsReadOnly();
@@ -35,15 +36,22 @@ public sealed class UserProfile : AggregateRoot<UserId>
     public DateTimeOffset CreatedAt { get; private init; }
     public DateTimeOffset? UpdatedAt { get; private set; }
 
-    public static Result<UserProfile> Register(
-        TelegramUserId telegramUserId, string displayName, DateOfBirth dateOfBirth)
+    public static Result<UserProfile> Register(TelegramUserId telegramUserId, string displayName)
     {
         if (string.IsNullOrWhiteSpace(displayName))
         {
             return Error.Validation("Display name is required.");
         }
 
-        return new UserProfile(UserId.New(), telegramUserId, displayName.Trim(), dateOfBirth);
+        return new UserProfile(UserId.New(), telegramUserId, displayName.Trim());
+    }
+
+    /// <summary>Sets or replaces the user's date of birth.</summary>
+    public Result SetDateOfBirth(DateOfBirth dateOfBirth)
+    {
+        DateOfBirth = dateOfBirth;
+        Touch();
+        return Result.Success();
     }
 
     /// <summary>Appends a new measurement for the given metric, validated against its range.</summary>

@@ -14,15 +14,38 @@ public sealed class UserProfileTests
     [Test]
     public void Register_WithBlankName_Fails()
     {
-        var result = UserProfile.Register(AnyTelegramId(), "   ", AnyDateOfBirth());
+        var result = UserProfile.Register(AnyTelegramId(), "   ");
 
         Assert.That(result.IsFailure, Is.True);
     }
 
     [Test]
+    public void Register_LeavesDateOfBirthUnset()
+    {
+        var user = UserProfile.Register(AnyTelegramId(), "Alice").Value;
+
+        Assert.That(user.DateOfBirth, Is.Null);
+    }
+
+    [Test]
+    public void SetDateOfBirth_StoresValueAndTouches()
+    {
+        var user = UserProfile.Register(AnyTelegramId(), "Alice").Value;
+
+        var result = user.SetDateOfBirth(AnyDateOfBirth());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsSuccess, Is.True);
+            Assert.That(user.DateOfBirth, Is.EqualTo(AnyDateOfBirth()));
+            Assert.That(user.UpdatedAt, Is.Not.Null);
+        });
+    }
+
+    [Test]
     public void Register_Succeeds_AndRaisesUserRegistered()
     {
-        var result = UserProfile.Register(AnyTelegramId(), "Alice", AnyDateOfBirth());
+        var result = UserProfile.Register(AnyTelegramId(), "Alice");
 
         Assert.Multiple(() =>
         {
@@ -34,7 +57,7 @@ public sealed class UserProfileTests
     [Test]
     public void RecordMeasurement_OutOfRange_Fails()
     {
-        var user = UserProfile.Register(AnyTelegramId(), "Alice", AnyDateOfBirth()).Value;
+        var user = UserProfile.Register(AnyTelegramId(), "Alice").Value;
 
         var result = user.RecordMeasurement(MetricType.Height, value: 500, At(2026, 6, 13));
 
@@ -48,7 +71,7 @@ public sealed class UserProfileTests
     [Test]
     public void RecordMeasurement_StoresMeasurementAndTouches()
     {
-        var user = UserProfile.Register(AnyTelegramId(), "Alice", AnyDateOfBirth()).Value;
+        var user = UserProfile.Register(AnyTelegramId(), "Alice").Value;
 
         var result = user.RecordMeasurement(MetricType.Weight, value: 75, At(2026, 6, 13));
 
@@ -63,7 +86,7 @@ public sealed class UserProfileTests
     [Test]
     public void LatestOf_ReturnsMostRecentMeasurementOfType()
     {
-        var user = UserProfile.Register(AnyTelegramId(), "Alice", AnyDateOfBirth()).Value;
+        var user = UserProfile.Register(AnyTelegramId(), "Alice").Value;
         user.RecordMeasurement(MetricType.Weight, value: 75, At(2026, 6, 1));
         user.RecordMeasurement(MetricType.Weight, value: 74, At(2026, 6, 13));
 
@@ -73,7 +96,7 @@ public sealed class UserProfileTests
     [Test]
     public void CurrentBmi_IsNullUntilBothHeightAndWeightRecorded()
     {
-        var user = UserProfile.Register(AnyTelegramId(), "Alice", AnyDateOfBirth()).Value;
+        var user = UserProfile.Register(AnyTelegramId(), "Alice").Value;
         user.RecordMeasurement(MetricType.Height, value: 180, At(2026, 6, 1));
 
         Assert.That(user.CurrentBmi, Is.Null);
