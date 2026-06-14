@@ -10,11 +10,11 @@ namespace Habeas.Domain.Users;
 /// </summary>
 public sealed class MetricType : ValueObject
 {
-    public static readonly MetricType Height = new("height", "Height", "cm", min: 0, max: 300);
     public static readonly MetricType Weight = new("weight", "Weight", "kg", min: 0, max: 700);
+    public static readonly MetricType Height = new("height", "Height", "cm", min: 0, max: 300);
 
     /// <summary>All known metrics, in display order.</summary>
-    public static readonly IReadOnlyList<MetricType> All = [Height, Weight];
+    public static readonly IReadOnlyList<MetricType> All = [Weight, Height];
 
     private MetricType(string key, string displayName, string unit, double min, double max)
     {
