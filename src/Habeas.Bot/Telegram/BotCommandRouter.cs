@@ -19,6 +19,7 @@ internal sealed class BotCommandRouter(
     ICommandHandler<RecordBodyMeasurement.Command, MeasurementView> recordMeasurement,
     IQueryHandler<GetProfile.Query, GetProfile.ProfileView> getProfile,
     IQueryHandler<GetMeasurementHistory.Query, GetMeasurementHistory.HistoryView> getHistory,
+    IQueryHandler<IsRegistered.Query, bool> isRegistered,
     ConversationState conversations,
     BotMenu menu)
 {
@@ -41,6 +42,17 @@ internal sealed class BotCommandRouter(
 
         var (command, _) = Split(text);
 
+        // Gate everything but /start and /help: an unregistered user must register first, so the
+        // bot's behaviour matches the slimmed-down menu they see (see BotMenu).
+        if (RequiresRegistration(command))
+        {
+            var registration = await isRegistered.Handle(new IsRegistered.Query(telegramUserId), ct);
+            if (registration.IsSuccess && !registration.Value)
+            {
+                return "You are not registered yet. Send /start first.";
+            }
+        }
+
         return command switch
         {
             "/start" => await HandleStartAsync(telegramUserId, displayName, ct),
@@ -52,6 +64,10 @@ internal sealed class BotCommandRouter(
             _ => $"Unknown command. {HelpText}",
         };
     }
+
+    /// <summary>Commands that need an existing account; <c>/start</c> and <c>/help</c> are open.</summary>
+    private static bool RequiresRegistration(string command) =>
+        command is "/birth" or "/body" or "/me" or "/history";
 
     /// <summary>Handles a tap on a <c>/body</c> metric button, asking for the value next.</summary>
     public BotResponse HandleCallback(long telegramUserId, string callbackData)
