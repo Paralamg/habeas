@@ -20,4 +20,8 @@
     <ProjectReference Include="..\Habeas.Infrastructure\Habeas.Infrastructure.csproj" />
     <ProjectReference Include="..\Habeas.Application\Habeas.Application.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Habeas.Bot.Tests" />
+  </ItemGroup>
 </Project>
