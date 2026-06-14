@@ -5,15 +5,18 @@ namespace Habeas.Domain.Users;
 
 /// <summary>
 /// Aggregate root for a person known to the bot: who they are in Telegram and their
-/// latest body metrics (height/weight). This is deliberately the minimal core — add new
-/// profile facts and behaviours as separate methods/value objects as the bot grows.
+/// body measurements over time (height/weight). This is deliberately the minimal core — add
+/// new profile facts and behaviours as separate methods/value objects as the bot grows.
 /// </summary>
 public sealed class UserProfile : AggregateRoot<UserId>
 {
+    private readonly List<BodyMeasurement> _measurements = [];
+
     // Required by EF Core's materialization.
     private UserProfile(UserId id) : base(id) => TelegramUserId = null!;
 
-    private UserProfile(UserId id, TelegramUserId telegramUserId, string displayName) : base(id)
+    private UserProfile(UserId id, TelegramUserId telegramUserId, string displayName)
+        : base(id)
     {
         TelegramUserId = telegramUserId;
         DisplayName = displayName;
@@ -23,7 +26,13 @@ public sealed class UserProfile : AggregateRoot<UserId>
 
     public TelegramUserId TelegramUserId { get; private set; }
     public string DisplayName { get; private set; } = string.Empty;
-    public BodyMetrics? BodyMetrics { get; private set; }
+
+    /// <summary>The user's date of birth; null until they set it via the /birth flow.</summary>
+    public DateOfBirth? DateOfBirth { get; private set; }
+
+    /// <summary>The full history of recorded body measurements, oldest-to-newest is not guaranteed.</summary>
+    public IReadOnlyCollection<BodyMeasurement> Measurements => _measurements.AsReadOnly();
+
     public DateTimeOffset CreatedAt { get; private init; }
     public DateTimeOffset? UpdatedAt { get; private set; }
 
@@ -37,12 +46,50 @@ public sealed class UserProfile : AggregateRoot<UserId>
         return new UserProfile(UserId.New(), telegramUserId, displayName.Trim());
     }
 
-    /// <summary>Records the user's latest body metrics (height and weight).</summary>
-    public Result SetBodyMetrics(BodyMetrics metrics)
+    /// <summary>Sets or replaces the user's date of birth.</summary>
+    public Result SetDateOfBirth(DateOfBirth dateOfBirth)
     {
-        BodyMetrics = metrics;
+        DateOfBirth = dateOfBirth;
         Touch();
         return Result.Success();
+    }
+
+    /// <summary>Appends a new measurement for the given metric, validated against its range.</summary>
+    public Result RecordMeasurement(MetricType metricType, double value, DateTimeOffset recordedAt)
+    {
+        var validation = metricType.Validate(value);
+        if (validation.IsFailure)
+        {
+            return validation;
+        }
+
+        _measurements.Add(BodyMeasurement.Create(metricType, value, recordedAt));
+        Touch();
+        return Result.Success();
+    }
+
+    /// <summary>The most recent measurement of the given metric, or null if none recorded.</summary>
+    public BodyMeasurement? LatestOf(MetricType metricType) =>
+        _measurements
+            .Where(m => m.MetricType == metricType)
+            .MaxBy(m => m.RecordedAt);
+
+    /// <summary>
+    /// Body Mass Index from the latest height and weight; null until both have been recorded.
+    /// </summary>
+    public double? CurrentBmi
+    {
+        get
+        {
+            var height = LatestOf(MetricType.Height);
+            var weight = LatestOf(MetricType.Weight);
+            if (height is null || weight is null)
+            {
+                return null;
+            }
+
+            return weight.Value / Math.Pow(height.Value / 100d, 2);
+        }
     }
 
     private void Touch() => UpdatedAt = DateTimeOffset.UtcNow;

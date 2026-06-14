@@ -3,6 +3,7 @@ using System;
 using Habeas.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Habeas.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(HabeasDbContext))]
-    partial class HabeasDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260613180936_AddDateOfBirth")]
+    partial class AddDateOfBirth
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -32,7 +35,7 @@ namespace Habeas.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
-                    b.Property<DateOnly?>("DateOfBirth")
+                    b.Property<DateOnly>("DateOfBirth")
                         .HasColumnType("date")
                         .HasColumnName("date_of_birth");
 
@@ -62,44 +65,30 @@ namespace Habeas.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Habeas.Domain.Users.UserProfile", b =>
                 {
-                    b.OwnsMany("Habeas.Domain.Users.BodyMeasurement", "Measurements", b1 =>
+                    b.OwnsOne("Habeas.Domain.Users.BodyMetrics", "BodyMetrics", b1 =>
                         {
-                            b1.Property<Guid>("Id")
+                            b1.Property<Guid>("UserProfileId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("id");
 
-                            b1.Property<string>("MetricType")
-                                .IsRequired()
-                                .HasMaxLength(32)
-                                .HasColumnType("character varying(32)")
-                                .HasColumnName("metric");
-
-                            b1.Property<DateTimeOffset>("RecordedAt")
-                                .HasColumnType("timestamp with time zone")
-                                .HasColumnName("recorded_at");
-
-                            b1.Property<double>("Value")
+                            b1.Property<double>("HeightCm")
                                 .HasColumnType("double precision")
-                                .HasColumnName("value");
+                                .HasColumnName("body_metrics_height_cm");
 
-                            b1.Property<Guid>("user_id")
-                                .HasColumnType("uuid")
-                                .HasColumnName("user_id");
+                            b1.Property<double>("WeightKg")
+                                .HasColumnType("double precision")
+                                .HasColumnName("body_metrics_weight_kg");
 
-                            b1.HasKey("Id")
-                                .HasName("pk_body_measurements");
+                            b1.HasKey("UserProfileId");
 
-                            b1.HasIndex("user_id")
-                                .HasDatabaseName("ix_body_measurements_user_id");
-
-                            b1.ToTable("body_measurements", (string)null);
+                            b1.ToTable("users");
 
                             b1.WithOwner()
-                                .HasForeignKey("user_id")
-                                .HasConstraintName("fk_body_measurements_users_user_id");
+                                .HasForeignKey("UserProfileId")
+                                .HasConstraintName("fk_users_users_id");
                         });
 
-                    b.Navigation("Measurements");
+                    b.Navigation("BodyMetrics");
                 });
 #pragma warning restore 612, 618
         }

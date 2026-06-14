@@ -5,39 +5,35 @@ using Habeas.Domain.Users;
 namespace Habeas.Application.Tests;
 
 [TestFixture]
-public sealed class RegisterUserCommandHandlerTests
+public sealed class SetDateOfBirthHandlerTests
 {
     [Test]
-    public async Task Handle_NewUser_PersistsAndReturnsId()
+    public async Task Handle_UnregisteredUser_ReturnsNotFound()
+    {
+        var handler = new SetDateOfBirth.Handler(new InMemoryUserRepository(), new NoOpUnitOfWork());
+
+        var result = await handler.Handle(
+            new SetDateOfBirth.Command(123, new DateOnly(1990, 5, 20)), CancellationToken.None);
+
+        Assert.That(result.IsFailure, Is.True);
+    }
+
+    [Test]
+    public async Task Handle_RegisteredUser_StoresDateOfBirth()
     {
         var users = new InMemoryUserRepository();
-        var handler = new RegisterUser.Handler(users, new NoOpUnitOfWork());
+        var user = UserProfile.Register(TelegramUserId.Create(123).Value, "Alice").Value;
+        users.All.Add(user);
+        var handler = new SetDateOfBirth.Handler(users, new NoOpUnitOfWork());
 
-        var result = await handler.Handle(new RegisterUser.Command(123, "Alice"), CancellationToken.None);
-        var stored = await users.GetByTelegramIdAsync(123);
+        var result = await handler.Handle(
+            new SetDateOfBirth.Command(123, new DateOnly(1990, 5, 20)), CancellationToken.None);
 
         Assert.Multiple(() =>
         {
             Assert.That(result.IsSuccess, Is.True);
-            Assert.That(result.Value.WasCreated, Is.True);
-            Assert.That(stored, Is.Not.Null);
-        });
-    }
-
-    [Test]
-    public async Task Handle_ExistingUser_IsIdempotent()
-    {
-        var users = new InMemoryUserRepository();
-        var handler = new RegisterUser.Handler(users, new NoOpUnitOfWork());
-
-        var first = await handler.Handle(new RegisterUser.Command(123, "Alice"), CancellationToken.None);
-        var second = await handler.Handle(new RegisterUser.Command(123, "Alice again"), CancellationToken.None);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(second.Value.UserId, Is.EqualTo(first.Value.UserId));
-            Assert.That(second.Value.WasCreated, Is.False);
-            Assert.That(users.All, Has.Count.EqualTo(1));
+            Assert.That(result.Value.DateOfBirth, Is.EqualTo(new DateOnly(1990, 5, 20)));
+            Assert.That(user.DateOfBirth, Is.Not.Null);
         });
     }
 

@@ -11,13 +11,17 @@ namespace Habeas.Bot.Telegram;
 internal sealed class BotPollingService(
     ITelegramBotClient botClient,
     HabeasUpdateHandler updateHandler,
+    BotMenu menu,
     ILogger<BotPollingService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Publishing commands is what makes Telegram render the Menu button; do it before polling.
+        await menu.PublishDefaultAsync(stoppingToken);
+
         var receiverOptions = new ReceiverOptions
         {
-            AllowedUpdates = [UpdateType.Message],
+            AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery],
             DropPendingUpdates = true,
         };
 
