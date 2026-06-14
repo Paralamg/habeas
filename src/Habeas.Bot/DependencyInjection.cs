@@ -21,6 +21,7 @@ internal static class DependencyInjection
 
         services.AddSingleton<HabeasUpdateHandler>();
         services.AddSingleton<ConversationState>();
+        services.AddSingleton<BotMenu>();
         services.AddScoped<BotCommandRouter>();
         services.AddHostedService<BotPollingService>();
 

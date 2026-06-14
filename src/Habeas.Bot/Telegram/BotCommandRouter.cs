@@ -19,7 +19,8 @@ internal sealed class BotCommandRouter(
     ICommandHandler<RecordBodyMeasurement.Command, MeasurementView> recordMeasurement,
     IQueryHandler<GetProfile.Query, GetProfile.ProfileView> getProfile,
     IQueryHandler<GetMeasurementHistory.Query, GetMeasurementHistory.HistoryView> getHistory,
-    ConversationState conversations)
+    ConversationState conversations,
+    BotMenu menu)
 {
     /// <summary>Prefix for <c>/body</c> button callback data, e.g. <c>body:height</c>.</summary>
     private const string BodyCallbackPrefix = "body:";
@@ -76,6 +77,9 @@ internal sealed class BotCommandRouter(
         {
             return Fail(result.Error);
         }
+
+        // Now that the user is registered, swap their chat over to the full command menu.
+        await menu.PublishForRegisteredAsync(telegramUserId, ct);
 
         if (result.Value.WasCreated)
         {
