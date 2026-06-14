@@ -62,8 +62,7 @@ internal sealed class BotCommandRouter(
         }
 
         conversations.Await(telegramUserId, new AwaitingMeasurement(metricType));
-        return $"Enter your {metricType.DisplayName.ToLowerInvariant()} in {metricType.Unit} "
-            + $"(field: {metricType.Key}):";
+        return $"Enter your {metricType.DisplayName.ToLowerInvariant()} in {metricType.Unit} ";
     }
 
     /// <summary>
